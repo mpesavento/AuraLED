@@ -13,24 +13,26 @@
 
 #define FPS 100
 
-//CRGB leds[NUM_LEDS];
 CRGBArray<NUM_LEDS> leds;
 
 CRGBPalette16 currentPalette;
 TBlendType    currentBlending;
 int brightness = 255;
 
-int MAX_BRIGHT = 100;
-int MIN_BRIGHT = 20;
-
-float desat_freq = 0.1;
-
-Btn btn_reset(RESET_PIN);
-
 // set the number of pixels we want on
 uint8_t NUM_ON = 4;
 
-uint8_t values[NUM_LEDS];
+int MAX_BRIGHT = 100;
+int MIN_BRIGHT = 20;
+
+int TEST_RATE_MS = 10000; // testing delay between iterations
+
+// what probability (from uniform dist) do we want to have a desaturated pixel?
+// NOTE: do we want a desaturated pixel, or desaturated color set?
+float desat_freq = 0.1;  // prob that is desaturated
+
+Btn btn_reset(RESET_PIN);
+
 
 // ***********************************************
 void setup() {
@@ -43,7 +45,8 @@ void setup() {
   FastLED.setBrightness( brightness );
 
   Serial.begin(9600);
-  Serial.print("Start ");
+  Serial.println("Start ");
+  Serial.println("using HSV");
   currentBlending = LINEARBLEND;
 }
 
@@ -62,22 +65,16 @@ void loop()
   );
 
   // FOR TESTING
-  EVERY_N_MILLISECONDS( 2000 ) { set_aura_colors(); }
+  EVERY_N_MILLISECONDS( TEST_RATE_MS ) { set_aura_colors(); }
 //  set_aura_colors();
-//  EVERY_N_MILLISECONDS( 2000 ) { set_aura_multicolor(); }
+//  EVERY_N_MILLISECONDS( TEST_RATE_MS ) { set_aura_multicolor(); }
 //  set_aura_multicolor();
-
-//  static uint8_t paletteIndex = 0; // the number of pixels that the pattern phase shifts each time
-//  // decouple the rate from the index by waiting for some time
-//  EVERY_N_MILLISECONDS( 80 ) { paletteIndex++; }  
-//  fill_mirror_from_palette(paletteIndex);
   FastLED.show();
   delayToSyncFrameRate(FPS);
 }
 
 float random_float() {
   float f = float(random(10000) / 10000.0);
-  Serial.println(f);
   return f;
 }
 
@@ -91,13 +88,8 @@ void print_color(CHSV color) {
 
 CHSV get_random_color() {
   //want to get random hue, saturation towards fully saturated
-  CHSV color = CHSV(random8(), 255, random8(MIN_BRIGHT, MAX_BRIGHT));
-  // we want to have a white aura be a rare thing, so overwrite saturation if we happen to roll the dice well
-//  if(random_float() < desat_freq) {
-//    Serial.println("*");
-//    color.saturation = random8(100, 240);
-//  }
-  print_color(color);
+  CHSV color = CHSV(random8(), random8(200, 255), random8(MIN_BRIGHT, MAX_BRIGHT));
+  return color;
 }
 
 void set_aura_colors() {
@@ -110,8 +102,15 @@ void set_aura_colors() {
     CHSV set_color = color;
     // randomize the brightness
     set_color.value = random8(MIN_BRIGHT, MAX_BRIGHT);
+    // we want to have a white aura be a rare thing, so overwrite saturation if we happen to roll the dice well
+    if(random_float() < desat_freq) {
+      Serial.print("*");
+      set_color.saturation = random8(50, 100);
+    }
+
     leds[random8(NUM_LEDS)] = set_color; 
   }
+  print_color(color);
 }
 
 
