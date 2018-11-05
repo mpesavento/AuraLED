@@ -9,7 +9,7 @@
 #define COLOR_ORDER BGR  // most of the 10mm black APA102
 
 #define CHIPSET     APA102
-#define NUM_LEDS    20
+#define NUM_LEDS    40
 
 #define FPS 100
 
@@ -20,8 +20,12 @@ TBlendType    currentBlending;
 int brightness = 255;
 
 // set the number of pixels we want on
-uint8_t NUM_ON = 20;
+uint8_t NUM_ON = NUM_LEDS;
 
+uint8_t NUM_OUTSIDE = 20;
+uint8_t NUM_INSIDE = 20;
+
+float INNER_SCALE = 0.6;
 int MAX_BRIGHT = 255;
 int MIN_BRIGHT = 20;
 
@@ -52,29 +56,26 @@ void setup() {
 
 void loop()
 {
-  // check reset button state
-  btn_reset.poll(
-    // button pressed
-    [](){
-      set_aura_colors();
-    },
-    // button held
-    [](){
-      set_aura_multicolor();
-    }
-  );
+//  // check reset button state
+//  btn_reset.poll(
+//    // button pressed
+//    [](){
+//      set_aura_colors(0, NUM_LEDS);
+//    },
+//    // button held
+//    [](){
+//      set_aura_multicolor(0, NUM_LEDS);
+//    }
+//  );
 
-  // FOR TESTING
-//  EVERY_N_MILLISECONDS( TEST_RATE_MS ) { set_aura_colors(); }
-
-  EVERY_N_MILLISECONDS( TEST_RATE_MS ) { set_aura_multicolor(); }
-//  EVERY_N_MILLISECONDS( TEST_RATE_MS ) { set_aura_primary_color(); }
-
-//  set_aura_multicolor();
+  // update the pixel array
+  EVERY_N_MILLISECONDS( TEST_RATE_MS ) { write_colors(); }
+  
   FastLED.show();
   delayToSyncFrameRate(FPS);
 }
 
+// ************************************************************
 float random_float() {
   float f = float(random(10000) / 10000.0);
   return f;
@@ -88,6 +89,14 @@ void print_color(CHSV color) {
   Serial.println(color.v);
 }
 
+void write_colors() {
+  fill_solid(leds, NUM_LEDS, CRGB(0, 0, 0));
+//  set_aura_colors(0, NUM_LEDS, false);
+  set_aura_primary_color(0, NUM_OUTSIDE, false);
+  set_aura_multicolor(NUM_OUTSIDE, NUM_LEDS, true);
+  
+}
+
 CHSV get_random_color() {
   //want to get random hue, saturation towards fully saturated
   CHSV color = CHSV(random8(), random8(200, 255), random8(MIN_BRIGHT, MAX_BRIGHT));
@@ -95,13 +104,10 @@ CHSV get_random_color() {
 }
 
 
-void set_aura_colors() {
+void set_aura_colors(int start_i, int end_i, int dim_half) {
   // set the random color 
   CHSV color = get_random_color();
-  // fill all to black
-  fill_solid(leds, NUM_LEDS, CRGB(0, 0, 0));
-  // except our target pixels
-  for(int i=0; i<NUM_ON; i++) {
+  for(int i=start_i; i<end_i; i++) {
     CHSV set_color = color;
     // we want to have a white aura be a rare thing, so overwrite saturation if we happen to roll the dice well
     if(random_float() < desat_freq) {
@@ -109,8 +115,10 @@ void set_aura_colors() {
       set_color.sat = random8(50, 100);
     }
     // drop the intensity for the inner circle
-    if(i >= floor(NUM_LEDS/2)) {
-      set_color.val = uint8_t(set_color.value * 0.5);
+    if (dim_half) {
+      if(i >= start_i && i < start_i + floor((end_i - start_i)/2)) {
+        set_color.val = uint8_t(set_color.value * INNER_SCALE);
+      }
     }
     leds[i] = set_color; 
   }
@@ -118,34 +126,42 @@ void set_aura_colors() {
 }
 
 
-void set_aura_multicolor() {
-  // fill all to black
-  fill_solid(leds, NUM_LEDS, CRGB(0, 0, 0));
-  // except our target pixels
-  for(int i=0; i<NUM_ON; i++) {
+void set_aura_multicolor(int start_i, int end_i, int dim_half) {
+  for(int i=start_i; i<end_i; i++) {
     CHSV set_color = get_random_color();
     // set all cool colors
     set_color.hue = random8(80, 240); // yellow-green to pink
     // drop the intensity for the inner circle
-    if(i >= floor(NUM_LEDS/2)) {
-      set_color.val = uint8_t(set_color.value * 0.5);
+    if (dim_half) {
+      if(i >= start_i && i < start_i + floor((end_i - start_i)/2)) {
+//        Serial.print("dim:");
+//        Serial.print(set_color.value );
+//        Serial.print("->");
+//        Serial.println(set_color.value * INNER_SCALE);
+        set_color.val = uint8_t(set_color.value * INNER_SCALE);
+      }
     }
     leds[i] = set_color;
   }
 }
 
-void set_aura_primary_color() {
-  // fill all to black
-  fill_solid(leds, NUM_LEDS, CRGB(0, 0, 0));
-  // except our target pixels
+void set_aura_primary_color(int start_i, int end_i, int dim_half) {
   CHSV color = get_random_color();
-  for(int i=0; i<NUM_ON; i++) {
+  for(int i=start_i; i<end_i; i++) {
     CHSV set_color = color;
     uint8_t hue = set_color.hue;
-    set_color.hue = random8(max(0, hue-30), min(hue+30, 255));
+//    Serial.print(hue);
+//    Serial.print(":");
+//    Serial.print((hue-30) % 256);
+//    Serial.print(",");
+//    Serial.println((hue+30) % 256);
+    set_color.hue = random8((hue-30) % 256, (hue+30) % 256);
+    set_color.value = set_color.value * 0.8;
     // drop the intensity for the inner circle
-    if(i >= floor(NUM_LEDS/2)) {
-      set_color.val = uint8_t(set_color.value * 0.5);
+    if (dim_half) {
+      if(i >= start_i && i < start_i + floor((end_i - start_i)/2)) {
+        set_color.val = uint8_t(set_color.value * INNER_SCALE);
+      }
     }
     leds[i] = set_color;
   }
